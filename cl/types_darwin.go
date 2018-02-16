@@ -1,6 +1,16 @@
 package cl
 
-// #include "cl.h"
+/*
+#cgo CFLAGS: -I CL
+#cgo !darwin LDFLAGS: -lOpenCL
+#cgo darwin LDFLAGS: -framework OpenCL
+
+#ifdef __APPLE__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
+#endif
+*/
 import "C"
 
 // Extension: cl_APPLE_fixed_alpha_channel_orders

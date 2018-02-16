@@ -16,8 +16,17 @@ in the Go standard packages.
 */
 package cl
 
-// #include "cl.h"
-// #cgo darwin LDFLAGS: -framework OpenCL
+/*
+#cgo CFLAGS: -I CL
+#cgo !darwin LDFLAGS: -lOpenCL
+#cgo darwin LDFLAGS: -framework OpenCL
+
+#ifdef __APPLE__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
+#endif
+*/
 import "C"
 import "errors"
 

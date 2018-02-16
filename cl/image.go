@@ -2,12 +2,48 @@
 
 package cl
 
-// #include "cl.h"
+/*
+#cgo CFLAGS: -I CL
+#cgo !darwin LDFLAGS: -lOpenCL
+#cgo darwin LDFLAGS: -framework OpenCL
+
+#ifdef __APPLE__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
+#endif
+*/
 import "C"
 import (
 	"image"
 	"unsafe"
 )
+
+type ImageDescription struct {
+	Type                            MemObjectType
+	Width, Height, Depth            int
+	ArraySize, RowPitch, SlicePitch int
+	NumMipLevels, NumSamples        int
+	Buffer                          *MemObject
+}
+
+func (d ImageDescription) toCl() C.cl_image_desc {
+	var desc C.cl_image_desc
+	desc.image_type = C.cl_mem_object_type(d.Type)
+	desc.image_width = C.size_t(d.Width)
+	desc.image_height = C.size_t(d.Height)
+	desc.image_depth = C.size_t(d.Depth)
+	desc.image_array_size = C.size_t(d.ArraySize)
+	desc.image_row_pitch = C.size_t(d.RowPitch)
+	desc.image_slice_pitch = C.size_t(d.SlicePitch)
+	desc.num_mip_levels = C.cl_uint(d.NumMipLevels)
+	desc.num_samples = C.cl_uint(d.NumSamples)
+	desc.buffer = nil
+	if d.Buffer != nil {
+		desc.buffer = d.Buffer.clMem
+	}
+	return desc
+}
 
 func (ctx *Context) CreateImage(flags MemFlag, imageFormat ImageFormat, imageDesc ImageDescription, data []byte) (*MemObject, error) {
 	format := imageFormat.toCl()
