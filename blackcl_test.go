@@ -80,17 +80,28 @@ __kernel void testByteKernel(__global char* data) {
 }
 `
 
+func TestBadProgram(t *testing.T) {
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Release()
+	defer recoverAddProgram(t)
+	d.AddProgram("meh")
+}
+
+func recoverAddProgram(t *testing.T) {
+	if err := recover(); r == nil {
+		t.Fatal("not correct program compiled without error")
+	}
+}
+
 func TestKernel(t *testing.T) {
 	d, err := GetDefaultDevice()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = d.AddProgram("meh"); err == nil {
-		t.Fatal("not correct program compiled without error")
-	}
-	if err = d.AddProgram(testKernel); err != nil {
-		t.Fatalf("testKernel not compiled: %s", err)
-	}
+	d.AddProgram(testKernel)
 	_, err = d.Kernel("meh")
 	if err == nil {
 		t.Fatal("getting nonexisting kernel")
@@ -172,5 +183,4 @@ func TestData(t *testing.T) {
 			t.Error("receivedData not equal to data")
 		}
 	}
-	fmt.Println(string(receivedData))
 }

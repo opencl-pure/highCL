@@ -13,7 +13,6 @@ package blackcl
 */
 import "C"
 import (
-	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -116,14 +115,15 @@ func (d *Device) DriverVersion() string {
 }
 
 //AddProgram copiles program source
-func (d *Device) AddProgram(source string) error {
+//if an error ocurres in building the program the AddProgram will panic
+func (d *Device) AddProgram(source string) {
 	var ret C.cl_int
 	csource := C.CString(source)
 	defer C.free(unsafe.Pointer(csource))
 	p := C.clCreateProgramWithSource(d.ctx, 1, &csource, nil, &ret)
 	err := toErr(ret)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	ret = C.clBuildProgram(p, 1, &d.id, nil, nil, nil)
 	if ret != C.CL_SUCCESS {
@@ -132,12 +132,11 @@ func (d *Device) AddProgram(source string) error {
 			C.clGetProgramBuildInfo(p, d.id, C.CL_PROGRAM_BUILD_LOG, 0, nil, &n)
 			log := make([]byte, int(n))
 			C.clGetProgramBuildInfo(p, d.id, C.CL_PROGRAM_BUILD_LOG, n, unsafe.Pointer(&log[0]), nil)
-			return errors.New(string(log))
+			panic(string(log))
 		}
-		return toErr(ret)
+		panic(toErr(ret))
 	}
 	d.programs = append(d.programs, p)
-	return nil
 }
 
 //Kernel returns an kernel function
