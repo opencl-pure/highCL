@@ -140,7 +140,8 @@ func (d *Device) AddProgram(source string) {
 }
 
 //Kernel returns an kernel function
-func (d *Device) Kernel(name string) (Kernel, error) {
+//if retrieving the kernel didn't complete the function will panic
+func (d *Device) Kernel(name string) Kernel {
 	cname := C.CString(name)
 	var k C.cl_kernel
 	var ret C.cl_int
@@ -150,12 +151,12 @@ func (d *Device) Kernel(name string) (Kernel, error) {
 			continue
 		}
 		if ret != C.CL_SUCCESS {
-			return nil, toErr(ret)
+			panic(toErr(ret))
 		}
 		break
 	}
 	if ret == C.CL_INVALID_KERNEL_NAME {
-		return nil, fmt.Errorf("kernel with name '%s' not found", name)
+		panic(fmt.Sprintf("kernel with name '%s' not found", name))
 	}
-	return newKernel(d, k), nil
+	return newKernel(d, k)
 }

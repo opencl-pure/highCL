@@ -91,8 +91,25 @@ func TestBadProgram(t *testing.T) {
 }
 
 func recoverAddProgram(t *testing.T) {
-	if err := recover(); r == nil {
+	if err := recover(); err == nil {
 		t.Fatal("not correct program compiled without error")
+	}
+}
+
+func TestBadKernel(t *testing.T) {
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Release()
+	defer recoverKernel(t)
+	d.AddProgram(testKernel)
+	d.Kernel("meh")
+}
+
+func recoverKernel(t *testing.T) {
+	if err := recover(); err == nil {
+		t.Fatal("getting nonexisting kernel")
 	}
 }
 
@@ -102,14 +119,7 @@ func TestKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.AddProgram(testKernel)
-	_, err = d.Kernel("meh")
-	if err == nil {
-		t.Fatal("getting nonexisting kernel")
-	}
-	k, err := d.Kernel("testKernel")
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := d.Kernel("testKernel")
 	buf, err := d.NewBuffer(16 * 4)
 	if err != nil {
 		t.Fatal(err)
@@ -169,8 +179,7 @@ func TestData(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.AddProgram(testKernel)
-	k, _ := d.Kernel("testByteKernel")
-	err = <-buf.Map(k)
+	err = <-buf.Map(d.Kernel("testByteKernel"))
 	if err != nil {
 		t.Fatal(err)
 	}
