@@ -36,7 +36,7 @@ __kernel void addOne(__global float* data) {
 //Add program source to device, get kernel and run kernel
 d.AddProgram(kernelSource)
 k := d.Kernel("addOne")
-err = <-k(buf)
+err = <-k([]int{16}, []int{1}, buf)
 if err != nil {
 	panic("could not run kernel")
 }
