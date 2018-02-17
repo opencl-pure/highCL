@@ -88,16 +88,16 @@ d.AddProgram(invertColorKernel)
 k := d.Kernel("invert")
 err = <-k([]int{img.Bounds().Dx(), img.Bounds().Dy()}, []int{1, 1}, buf, buf)
 if err != nil {
-	t.Fatal(err)
+	log.Fatal(err)
 }
 //get the image data back and save it to a file
 receivedImg, err := buf.DataImage()
 if err != nil {
-	t.Fatal(err)
+	log.Fatal(err)
 }
 f, err := os.Create("inverted.png")
 if err != nil {
-	t.Fatal(err)
+	log.Fatal(err)
 }
 png.Encode(f, receivedImg)
 ```
