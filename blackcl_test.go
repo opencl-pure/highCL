@@ -3,7 +3,7 @@ package blackcl
 import (
 	"fmt"
 	"image"
-	"image/png"
+	"image/jpeg"
 	"os"
 	"testing"
 )
@@ -207,7 +207,75 @@ __kernel void invert(__read_only image2d_t src, __write_only image2d_t dest) {
 	pixel.y = 1 - pixel.y;
 	pixel.z = 1 - pixel.z;
 	write_imagef(dest, pos, pixel);
+}`
+
+func readImage(d *Device, path string) (image.Image, *Buffer, error) {
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	img, _, err := image.Decode(imgFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	buf, err := d.NewBufferFromImage(img)
+	if err != nil {
+		return nil, nil, err
+	}
+	return img, buf, nil
 }
+
+func writeImage(buf *Buffer, path string) error {
+	receivedImg, err := buf.DataImage()
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return jpeg.Encode(f, receivedImg, nil)
+}
+
+func TestImage(t *testing.T) {
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Release()
+	img, buf, err := readImage(d, "test_data/opencl.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer buf.Release()
+	d.AddProgram(invertColorKernel)
+	k := d.Kernel("invert")
+	err = <-k([]int{img.Bounds().Dx(), img.Bounds().Dy()}, []int{1, 1}, buf, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writeImage(buf, "/tmp/test.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	grayImg, grayBuf, err := readImage(d, "test_data/gopher.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer grayBuf.Release()
+	err = <-k([]int{grayImg.Bounds().Dx(), grayImg.Bounds().Dy()}, []int{1, 1}, grayBuf, grayBuf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writeImage(grayBuf, "/tmp/test_gray.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+const gaussianBlurKernel = `
+__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
  
 __kernel void gaussian_blur(
         __read_only image2d_t image,
@@ -228,44 +296,12 @@ __kernel void gaussian_blur(
     }
  
     blurredImage[pos.x+pos.y*get_global_size(0)] = sum;
-}
-`
+}`
 
-func TestImage(t *testing.T) {
+func TestGaussianBlur(t *testing.T) {
 	d, err := GetDefaultDevice()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer d.Release()
-	imgFile, err := os.Open("test_data/opencl.png")
-	if err != nil {
-		t.Fatal(err)
-	}
-	img, _, err := image.Decode(imgFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := d.NewBufferFromImage(img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer buf.Release()
-	d.AddProgram(invertColorKernel)
-	k := d.Kernel("invert")
-	err = <-k([]int{img.Bounds().Dx(), img.Bounds().Dy()}, []int{1, 1}, buf, buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	receivedImg, err := buf.DataImage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := os.Create("/tmp/test.png")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = png.Encode(f, receivedImg)
-	if err != nil {
-		t.Fatal(err)
-	}
 }

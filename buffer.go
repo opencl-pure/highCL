@@ -45,12 +45,11 @@ import (
 
 //Buffer memory buffer on the device
 type Buffer struct {
-	memobj   C.cl_mem
-	size     int
-	device   *Device
-	order    C.cl_channel_order
-	rowPitch int
-	bounds   image.Rectangle
+	memobj C.cl_mem
+	size   int
+	device *Device
+	order  C.cl_channel_order
+	bounds image.Rectangle
 }
 
 //NewBuffer creates new buffer with specified size
@@ -111,7 +110,7 @@ func (d *Device) NewBufferFromImage(img image.Image) (*Buffer, error) {
 			0,
 			0,
 			nil)
-		return d.createImage(format, desc, m.Bounds().Dx(), m.Bounds().Dy(), m.Stride, m.Pix)
+		return d.createImage(format, desc, m.Bounds().Dx(), m.Bounds().Dy(), m.Pix)
 	case *image.RGBA:
 		var format C.cl_image_format
 		format.image_channel_order = C.CL_RGBA
@@ -127,7 +126,7 @@ func (d *Device) NewBufferFromImage(img image.Image) (*Buffer, error) {
 			0,
 			0,
 			nil)
-		return d.createImage(format, desc, m.Bounds().Dx(), m.Bounds().Dy(), m.Stride, m.Pix)
+		return d.createImage(format, desc, m.Bounds().Dx(), m.Bounds().Dy(), m.Pix)
 	}
 
 	b := img.Bounds()
@@ -150,10 +149,10 @@ func (d *Device) NewBufferFromImage(img image.Image) (*Buffer, error) {
 	format.image_channel_order = C.CL_RGBA
 	format.image_channel_data_type = C.CL_UNORM_INT8
 	desc := C.create_image_desc(C.CL_MEM_OBJECT_IMAGE2D, C.size_t(w), C.size_t(h), 0, 1, 0, 0, 0, 0, nil)
-	return d.createImage(format, desc, w, h, 0, data)
+	return d.createImage(format, desc, w, h, data)
 }
 
-func (d *Device) createImage(format C.cl_image_format, desc *C.cl_image_desc, width, height, rowPitch int, data []byte) (*Buffer, error) {
+func (d *Device) createImage(format C.cl_image_format, desc *C.cl_image_desc, width, height int, data []byte) (*Buffer, error) {
 	var dataPtr unsafe.Pointer
 	if data != nil {
 		dataPtr = unsafe.Pointer(&data[0])
@@ -168,12 +167,11 @@ func (d *Device) createImage(format C.cl_image_format, desc *C.cl_image_desc, wi
 		return nil, ErrUnknown
 	}
 	return &Buffer{
-		memobj:   clBuffer,
-		size:     len(data),
-		bounds:   image.Rect(0, 0, width, height),
-		order:    format.image_channel_order,
-		rowPitch: rowPitch,
-		device:   d,
+		memobj: clBuffer,
+		size:   len(data),
+		bounds: image.Rect(0, 0, width, height),
+		order:  format.image_channel_order,
+		device: d,
 	}, nil
 }
 
@@ -274,7 +272,7 @@ func (b *Buffer) DataImage() (image.Image, error) {
 		C.CL_TRUE,
 		&cOrigin[0],
 		&cRegion[0],
-		C.size_t(b.rowPitch),
+		0,
 		0,
 		unsafe.Pointer(&data[0]),
 		0,
