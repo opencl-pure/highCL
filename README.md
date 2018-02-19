@@ -11,16 +11,17 @@ if err != nil {
 }
 defer d.Release()
 
+//BlackCL has several kinds of device memory object: Bytes, Vector, Image
 //allocate buffer on the device (16 elems of float32)
-buf, err := d.NewBuffer(16*4)
+v, err := d.NewVector(16)
 if err != nil {
 	panic("could not allocate buffer")
 }
-defer buf.Release()
+defer v.Release()
 
-//copy data to the buffer (it's async)
+//copy data to the vector (it's async)
 data := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
-err = <-buf.CopyFloat32(data)
+err = <-v.Copy(data)
 if err != nil {
 	panic("could not copy data to buffer")
 }
@@ -37,13 +38,13 @@ __kernel void addOne(__global float* data) {
 d.AddProgram(kernelSource)
 k := d.Kernel("addOne")
 //run kernel (global work size 16 and local work size 1)
-err = <-k.Global(16).Local(1).Run(buf)
+err = <-k.Global(16).Local(1).Run(v)
 if err != nil {
 	panic("could not run kernel")
 }
 
-//Get data from buffer
-newData, err := buf.DataFloat32()
+//Get data from vector
+newData, err := v.Data()
 if err != nil {
 	panic("could not get data from buffer")
 }
@@ -73,25 +74,31 @@ imgFile, err := os.Open("test_data/opencl.png")
 if err != nil {
 	log.Fatal(err)
 }
-img, _, err := image.Decode(imgFile)
+i, _, err := image.Decode(imgFile)
 if err != nil {
 	log.Fatal(err)
 }
 //create image buffer
-buf, err := d.NewBufferFromImage(img)
+img, err := d.NewImageFromImage(i)
 if err != nil {
 	log.Fatal(err)
 }
-defer buf.Release()
+defer img.Release()
+//image result
+invertedImg, err := d.NewImage(blackcl.ImageTypeRGBA, img.Bounds())
+if err != nil {
+	log.Fatal(err)
+}
+defer invertedImg.Release()
 d.AddProgram(invertColorKernel)
 //invert colors of the image
 k := d.Kernel("invert")
-err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(buf, buf)
+err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
 if err != nil {
 	log.Fatal(err)
 }
-//get the image data back and save it to a file
-receivedImg, err := buf.DataImage()
+//get the inverted image data and save it to a file
+inverted, err := invertedImg.Data()
 if err != nil {
 	log.Fatal(err)
 }
@@ -99,5 +106,5 @@ f, err := os.Create("inverted.png")
 if err != nil {
 	log.Fatal(err)
 }
-png.Encode(f, receivedImg)
+png.Encode(f, inverted)
 ```

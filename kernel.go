@@ -133,8 +133,12 @@ func (k *Kernel) setArg(index int, arg interface{}) error {
 		return k.setArgInt32(index, val)
 	case float32:
 		return k.setArgFloat32(index, val)
-	case *Buffer:
-		return k.setArgBuffer(index, val)
+	case *Bytes:
+		return k.setArgBuffer(index, val.buf)
+	case *Vector:
+		return k.setArgBuffer(index, val.buf)
+	case *Image:
+		return k.setArgBuffer(index, val.buf)
 	//TODO case LocalBuffer:
 	//	return k.setArgLocal(index, int(val))
 	default:
@@ -142,8 +146,8 @@ func (k *Kernel) setArg(index int, arg interface{}) error {
 	}
 }
 
-func (k *Kernel) setArgBuffer(index int, buffer *Buffer) error {
-	mem := buffer.memobj
+func (k *Kernel) setArgBuffer(index int, buf *buffer) error {
+	mem := buf.memobj
 	return toErr(C.clSetKernelArg(k.k, C.cl_uint(index), C.size_t(unsafe.Sizeof(mem)), unsafe.Pointer(&mem)))
 }
 

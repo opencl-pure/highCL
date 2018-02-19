@@ -39,22 +39,22 @@ func TestGetDevices(t *testing.T) {
 	}
 }
 
-func TestBuffer(t *testing.T) {
+func TestBytes(t *testing.T) {
 	d, err := GetDefaultDevice()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer d.Release()
-	buf, err := d.NewBuffer(16 * 4)
+	b, err := d.NewBytes(16)
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
-	err = <-buf.CopyFloat32(data)
+	data := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	err = <-b.Copy(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	retrievedData, err := buf.DataFloat32()
+	retrievedData, err := b.Data()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,40 @@ func TestBuffer(t *testing.T) {
 			t.Fatal("retrieved data not equal to sended data")
 		}
 	}
-	err = buf.Release()
+	err = b.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVector(t *testing.T) {
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Release()
+	v, err := d.NewVector(16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	err = <-v.Copy(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retrievedData, err := v.Data()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(retrievedData) != len(data) {
+		t.Fatal("data not same length")
+	}
+	for i := 0; i < 16; i++ {
+		if data[i] != retrievedData[i] {
+			t.Fatal("retrieved data not equal to sended data")
+		}
+	}
+	err = v.Release()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,21 +156,21 @@ func TestKernel(t *testing.T) {
 	}
 	d.AddProgram(testKernel)
 	k := d.Kernel("testKernel")
-	buf, err := d.NewBuffer(16 * 4)
+	v, err := d.NewVector(16)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer buf.Release()
+	defer v.Release()
 	data := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
-	err = <-buf.CopyFloat32(data)
+	err = <-v.Copy(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = <-k.Global(16).Local(1).Run(buf)
+	err = <-k.Global(16).Local(1).Run(v)
 	if err != nil {
 		t.Fatal(err)
 	}
-	receivedData, err := buf.DataFloat32()
+	receivedData, err := v.Data()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,11 +179,11 @@ func TestKernel(t *testing.T) {
 			t.Error("receivedData not equal to data")
 		}
 	}
-	err = <-buf.Map(k)
+	err = <-v.Map(k)
 	if err != nil {
 		t.Fatal(err)
 	}
-	receivedData, err = buf.DataFloat32()
+	receivedData, err = v.Data()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,38 +195,6 @@ func TestKernel(t *testing.T) {
 	err = d.Release()
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestData(t *testing.T) {
-	d, err := GetDefaultDevice()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Release()
-	data := []byte(`abcdefgh`)
-	buf, err := d.NewBuffer(len(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer buf.Release()
-	err = <-buf.Copy(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.AddProgram(testKernel)
-	err = <-buf.Map(d.Kernel("testByteKernel"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	receivedData, err := buf.Data()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, b := range data {
-		if receivedData[i] != b+1 {
-			t.Error("receivedData not equal to data")
-		}
 	}
 }
 
@@ -209,24 +210,24 @@ __kernel void invert(__read_only image2d_t src, __write_only image2d_t dest) {
 	write_imagef(dest, pos, pixel);
 }`
 
-func readImage(d *Device, path string) (image.Image, *Buffer, error) {
+func readImage(d *Device, path string) (*Image, error) {
 	imgFile, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	img, _, err := image.Decode(imgFile)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	buf, err := d.NewBufferFromImage(img)
+	i, err := d.NewImageFromImage(img)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return img, buf, nil
+	return i, nil
 }
 
-func writeImage(buf *Buffer, path string) error {
-	receivedImg, err := buf.DataImage()
+func writeImage(img *Image, path string) error {
+	receivedImg, err := img.Data()
 	if err != nil {
 		return err
 	}
@@ -244,31 +245,39 @@ func TestImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Release()
-	img, buf, err := readImage(d, "test_data/opencl.jpg")
+	img, err := readImage(d, "test_data/opencl.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer buf.Release()
+	defer img.Release()
 	d.AddProgram(invertColorKernel)
 	k := d.Kernel("invert")
-	err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(buf, buf)
+	invertedImg, err := d.NewImage(ImageTypeRGBA, img.Bounds())
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = writeImage(buf, "/tmp/test.jpg")
+	err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	grayImg, grayBuf, err := readImage(d, "test_data/gopher.jpg")
+	err = writeImage(invertedImg, "/tmp/test.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer grayBuf.Release()
-	err = <-k.Global(grayImg.Bounds().Dx(), grayImg.Bounds().Dy()).Local(1, 1).Run(grayBuf, grayBuf)
+	grayImg, err := readImage(d, "test_data/gopher.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = writeImage(grayBuf, "/tmp/test_gray.jpg")
+	defer grayImg.Release()
+	invertedGrayImg, err := d.NewImage(ImageTypeGray, grayImg.Bounds())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = <-k.Global(grayImg.Bounds().Dx(), grayImg.Bounds().Dy()).Local(1, 1).Run(grayImg, invertedGrayImg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = writeImage(invertedGrayImg, "/tmp/test_gray.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
