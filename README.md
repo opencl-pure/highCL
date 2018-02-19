@@ -84,7 +84,7 @@ if err != nil {
 	log.Fatal(err)
 }
 defer img.Release()
-//image result
+//allocate an empty image for the result
 invertedImg, err := d.NewImage(blackcl.ImageTypeRGBA, img.Bounds())
 if err != nil {
 	log.Fatal(err)
