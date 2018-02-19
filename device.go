@@ -13,7 +13,6 @@ package blackcl
 */
 import "C"
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -137,26 +136,4 @@ func (d *Device) AddProgram(source string) {
 		panic(toErr(ret))
 	}
 	d.programs = append(d.programs, p)
-}
-
-//Kernel returns an kernel function
-//if retrieving the kernel didn't complete the function will panic
-func (d *Device) Kernel(name string) Kernel {
-	cname := C.CString(name)
-	var k C.cl_kernel
-	var ret C.cl_int
-	for _, p := range d.programs {
-		k = C.clCreateKernel(p, cname, &ret)
-		if ret == C.CL_INVALID_KERNEL_NAME {
-			continue
-		}
-		if ret != C.CL_SUCCESS {
-			panic(toErr(ret))
-		}
-		break
-	}
-	if ret == C.CL_INVALID_KERNEL_NAME {
-		panic(fmt.Sprintf("kernel with name '%s' not found", name))
-	}
-	return newKernel(d, k)
 }

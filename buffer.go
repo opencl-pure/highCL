@@ -296,6 +296,6 @@ func (b *Buffer) DataImage() (image.Image, error) {
 }
 
 //Map applies an map kernel on all elements of the buffer
-func (b *Buffer) Map(k Kernel) <-chan error {
-	return k([]int{int(b.size)}, []int{1}, b)
+func (b *Buffer) Map(k *Kernel) <-chan error {
+	return k.Global(b.size).Local(1).Run(b)
 }

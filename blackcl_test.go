@@ -133,7 +133,7 @@ func TestKernel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = <-k([]int{16}, []int{1}, buf)
+	err = <-k.Global(16).Local(1).Run(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestImage(t *testing.T) {
 	defer buf.Release()
 	d.AddProgram(invertColorKernel)
 	k := d.Kernel("invert")
-	err = <-k([]int{img.Bounds().Dx(), img.Bounds().Dy()}, []int{1, 1}, buf, buf)
+	err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(buf, buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer grayBuf.Release()
-	err = <-k([]int{grayImg.Bounds().Dx(), grayImg.Bounds().Dy()}, []int{1, 1}, grayBuf, grayBuf)
+	err = <-k.Global(grayImg.Bounds().Dx(), grayImg.Bounds().Dy()).Local(1, 1).Run(grayBuf, grayBuf)
 	if err != nil {
 		t.Fatal(err)
 	}
