@@ -3,7 +3,9 @@ package blackcl
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
+	_ "image/png"
 	"os"
 	"testing"
 )
@@ -313,4 +315,79 @@ func TestGaussianBlur(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Release()
+}
+
+func invertCPU(input image.Image) image.Image {
+	bounds := input.Bounds()
+	newImg := image.NewRGBA(bounds)
+
+	for x := 0; x < bounds.Max.X; x++ {
+		for y := 0; y < bounds.Max.Y; y++ {
+			//r, g, b, a := input.At(x, y).(color.YCbCr).RGBA()
+			r, g, b, a := input.At(x, y).(color.RGBA).RGBA()
+			newImg.Set(x, y, color.RGBA{
+				R: uint8(0xff - r),
+				G: uint8(0xff - g),
+				B: uint8(0xff - b),
+				A: uint8(a),
+			})
+		}
+	}
+	return newImg
+}
+
+func invertGPU(d *Device, kernel *Kernel, img *Image) (image.Image, error) {
+	invertedImg, err := d.NewImage(ImageTypeRGBA, img.Bounds())
+	if err != nil {
+		return nil, err
+	}
+	defer invertedImg.Release()
+	err = <-kernel.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
+	if err != nil {
+		return nil, err
+	}
+	return invertedImg.Data()
+}
+
+func BenchmarkInvertCPU(b *testing.B) {
+	imgFile, err := os.Open("/home/micro/Downloads/wallpaper.png")
+	if err != nil {
+		b.Fatal(err)
+	}
+	img, _, err := image.Decode(imgFile)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for n := 0; n < b.N; n++ {
+		invertCPU(img)
+	}
+}
+
+func BenchmarkInvertGPU(b *testing.B) {
+	d, err := GetDefaultDevice()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer d.Release()
+	d.AddProgram(invertColorKernel)
+	k := d.Kernel("invert")
+	imgFile, err := os.Open("/home/micro/Downloads/wallpaper.png")
+	if err != nil {
+		b.Fatal(err)
+	}
+	input, _, err := image.Decode(imgFile)
+	if err != nil {
+		b.Fatal(err)
+	}
+	img, err := d.NewImageFromImage(input)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer img.Release()
+	for n := 0; n < b.N; n++ {
+		_, err := invertGPU(d, k, img)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
