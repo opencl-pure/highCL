@@ -77,7 +77,7 @@ func newDevice(id C.cl_device_id) (*Device, error) {
 	if d.ctx == nil {
 		return nil, ErrUnknown
 	}
-	d.queue = C.clCreateCommandQueueWithProperties(d.ctx, d.id, nil, &ret)
+	d.queue = C.clCreateCommandQueue(d.ctx, d.id, 0, &ret)
 	err = toErr(ret)
 	if err != nil {
 		return nil, err
