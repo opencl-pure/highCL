@@ -10,6 +10,18 @@ package blackcl
 #else
 #include <CL/cl.h>
 #endif
+
+#ifdef CL_VERSION_2_0
+int blackclOCLVersion = 2;
+#else
+int blackclOCLVersion = 1;
+cl_command_queue clCreateCommandQueueWithProperties(
+	cl_context context,
+  	cl_device_id device,
+  	void *properties,
+  	cl_int *errcode_ret
+) { return NULL; }
+#endif
 */
 import "C"
 
@@ -77,7 +89,11 @@ func newDevice(id C.cl_device_id) (*Device, error) {
 	if d.ctx == nil {
 		return nil, ErrUnknown
 	}
-	d.queue = C.clCreateCommandQueue(d.ctx, d.id, 0, &ret)
+	if C.blackclOCLVersion == 2 {
+		d.queue = C.clCreateCommandQueueWithProperties(d.ctx, d.id, nil, &ret)
+	} else {
+		d.queue = C.clCreateCommandQueue(d.ctx, d.id, 0, &ret)
+	}
 	err = toErr(ret)
 	if err != nil {
 		return nil, err
