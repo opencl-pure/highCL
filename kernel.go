@@ -182,7 +182,7 @@ func (k *Kernel) setArgUnsafe(index, argSize int, arg unsafe.Pointer) error {
 func (k *Kernel) call(workSizes, lokalSizes []int) <-chan error {
 	ch := make(chan error, 1)
 	workDim := len(workSizes)
-	if workDim != len(lokalSizes) {
+	if workDim != len(lokalSizes) && len(lokalSizes) > 0 {
 		ch <- errors.New("length of workSizes and localSizes differ")
 		return ch
 	}
@@ -191,22 +191,37 @@ func (k *Kernel) call(workSizes, lokalSizes []int) <-chan error {
 	for i := 0; i < workDim; i++ {
 		globalWorkSizePtr[i] = C.size_t(workSizes[i])
 	}
-	localWorkSizePtr := make([]C.size_t, workDim)
-	for i := 0; i < workDim; i++ {
+	localWorkSizePtr := make([]C.size_t, len(lokalSizes))
+	for i := 0; i < len(lokalSizes); i++ {
 		localWorkSizePtr[i] = C.size_t(lokalSizes[i])
 	}
 	var event C.cl_event
-	err := toErr(C.clEnqueueNDRangeKernel(
-		k.d.queue,
-		k.k,
-		C.cl_uint(workDim),
-		&globalWorkOffsetPtr[0],
-		&globalWorkSizePtr[0],
-		&localWorkSizePtr[0],
-		0,
-		nil,
-		&event,
-	))
+	var err error
+	if len(lokalSizes) > 0 {
+		err = toErr(C.clEnqueueNDRangeKernel(
+			k.d.queue,
+			k.k,
+			C.cl_uint(workDim),
+			&globalWorkOffsetPtr[0],
+			&globalWorkSizePtr[0],
+			&localWorkSizePtr[0],
+			0,
+			nil,
+			&event,
+		))
+	} else {
+		err = toErr(C.clEnqueueNDRangeKernel(
+			k.d.queue,
+			k.k,
+			C.cl_uint(workDim),
+			&globalWorkOffsetPtr[0],
+			&globalWorkSizePtr[0],
+			nil,
+			0,
+			nil,
+			&event,
+		))
+	}
 	if err != nil {
 		ch <- err
 		return ch
