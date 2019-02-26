@@ -115,7 +115,7 @@ func (d *Device) DriverVersion() string {
 
 //AddProgram copiles program source
 //if an error ocurres in building the program the AddProgram will panic
-func (d *Device) AddProgram(source string) {
+func (d *Device) AddProgram(source string) *Program {
 	var ret C.cl_int
 	csource := C.CString(source)
 	defer C.free(unsafe.Pointer(csource))
@@ -136,4 +136,6 @@ func (d *Device) AddProgram(source string) {
 		panic(toErr(ret))
 	}
 	d.programs = append(d.programs, p)
+
+	return &Program{program: p}
 }
