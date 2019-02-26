@@ -23,6 +23,7 @@ import (
 //if retrieving the kernel didn't complete the function will panic
 func (d *Device) Kernel(name string) *Kernel {
 	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
 	var k C.cl_kernel
 	var ret C.cl_int
 	for _, p := range d.programs {
