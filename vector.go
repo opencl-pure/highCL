@@ -74,6 +74,6 @@ func (v *Vector) Data() ([]float32, error) {
 }
 
 //Map applies an map kernel on all elements of the vector
-func (v *Vector) Map(k *Kernel) <-chan error {
-	return k.Global(v.Length()).Local(1).Run(v)
+func (v *Vector) Map(k *Kernel, returnEvent bool, waitEvents []*Event) (*Event, error) {
+	return k.Global(v.Length()).Local(1).Run(returnEvent, waitEvents, v)
 }

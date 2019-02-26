@@ -38,7 +38,7 @@ __kernel void addOne(__global float* data) {
 d.AddProgram(kernelSource)
 k := d.Kernel("addOne")
 //run kernel (global work size 16 and local work size 1)
-err = <-k.Global(16).Local(1).Run(v)
+_, err = k.Global(16).Local(1).Run(false, nil, v)
 if err != nil {
 	panic("could not run kernel")
 }
@@ -93,10 +93,14 @@ defer invertedImg.Release()
 d.AddProgram(invertColorKernel)
 //invert colors of the image
 k := d.Kernel("invert")
-err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
+// run kernel, and return an event
+event, err := k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(true, nil, img, invertedImg)
 if err != nil {
 	log.Fatal(err)
 }
+defer event.Release()
+//wait for the kernel to finish. Not really necessary here, this just serves as example
+event.Wait()
 //get the inverted image data and save it to a file
 inverted, err := invertedImg.Data()
 if err != nil {

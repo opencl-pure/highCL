@@ -168,7 +168,7 @@ func TestKernel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = <-k.Global(16).Local(1).Run(v)
+	_, err = k.Global(16).Local(1).Run(false, nil, v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestKernel(t *testing.T) {
 			t.Error("receivedData not equal to data")
 		}
 	}
-	err = <-v.Map(k)
+	_, err = v.Map(k, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = <-k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
+	_, err = k.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(false, nil, img, invertedImg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = <-k.Global(grayImg.Bounds().Dx(), grayImg.Bounds().Dy()).Local(1, 1).Run(grayImg, invertedGrayImg)
+	_, err = k.Global(grayImg.Bounds().Dx(), grayImg.Bounds().Dy()).Local(1, 1).Run(false, nil, grayImg, invertedGrayImg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func invertGPU(d *Device, kernel *Kernel, img *Image) (image.Image, error) {
 		return nil, err
 	}
 	defer invertedImg.Release()
-	err = <-kernel.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(img, invertedImg)
+	_, err = kernel.Global(img.Bounds().Dx(), img.Bounds().Dy()).Local(1, 1).Run(false, nil, img, invertedImg)
 	if err != nil {
 		return nil, err
 	}

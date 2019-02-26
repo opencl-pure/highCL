@@ -57,49 +57,72 @@ type Kernel struct {
 	k C.cl_kernel
 }
 
-//Global returns an kernel with global size set
-func (k *Kernel) Global(globalWorkSizes ...int) KernelWithGlobal {
-	return KernelWithGlobal{
-		kernel:          k,
-		globalWorkSizes: globalWorkSizes,
+//Global returns an kernel with global offsets set
+func (k *Kernel) GlobalOffset(globalWorkOffsets ...int) KernelCall {
+	return KernelCall{
+		kernel:            k,
+		globalWorkOffsets: globalWorkOffsets,
+		globalWorkSizes:   []int{},
+		localWorkSizes:    []int{},
 	}
 }
 
-//KernelWithGlobal is a kernel with the global size set
-//to run the kernel it must also set the local size
-type KernelWithGlobal struct {
-	kernel          *Kernel
-	globalWorkSizes []int
+//Global returns an kernel with global offsets set
+func (kc KernelCall) GlobalOffset(globalWorkOffsets ...int) KernelCall {
+	kc.globalWorkOffsets = globalWorkOffsets
+	return kc
+}
+
+//Global returns an KernelCall with global size set
+func (k *Kernel) Global(globalWorkSizes ...int) KernelCall {
+	return KernelCall{
+		kernel:            k,
+		globalWorkOffsets: []int{},
+		globalWorkSizes:   globalWorkSizes,
+		localWorkSizes:    []int{},
+	}
+}
+
+//Global returns an KernelCall with global size set
+func (kc KernelCall) Global(globalWorkSizes ...int) KernelCall {
+	kc.globalWorkSizes = globalWorkSizes
+	return kc
 }
 
 //Local sets the local work sizes and returns an KernelCall which takes kernel arguments and runs the kernel
-func (kg KernelWithGlobal) Local(localWorkSizes ...int) KernelCall {
+func (k *Kernel) Local(localWorkSizes ...int) KernelCall {
 	return KernelCall{
-		kernel:          kg.kernel,
-		globalWorkSizes: kg.globalWorkSizes,
-		localWorkSizes:  localWorkSizes,
+		kernel:            k,
+		globalWorkOffsets: []int{},
+		globalWorkSizes:   []int{},
+		localWorkSizes:    localWorkSizes,
 	}
+}
+
+//Local sets the local work sizes and returns an KernelCall which takes kernel arguments and runs the kernel
+func (kc KernelCall) Local(localWorkSizes ...int) KernelCall {
+	kc.localWorkSizes = localWorkSizes
+	return kc
 }
 
 //KernelCall is a kernel with global and local work sizes set
 //and it's ready to be run
 type KernelCall struct {
-	kernel          *Kernel
-	globalWorkSizes []int
-	localWorkSizes  []int
+	kernel            *Kernel
+	globalWorkOffsets []int
+	globalWorkSizes   []int
+	localWorkSizes    []int
 }
 
 //Run calls the kernel on its device with specified global and local work sizes and arguments
-//it's a non-blocking call, so it returns a channel that will send an error value when the kernel is done
-//or nil if the call was successful
-func (kc KernelCall) Run(args ...interface{}) <-chan error {
-	ch := make(chan error, 1)
-	err := kc.kernel.setArgs(args)
+//It's a non-blocking call, so it can return an event object that you can wait on.
+//The caller is responsible to release the returned event when it's not used anymore.
+func (kc KernelCall) Run(returnEvent bool, waitEvents []*Event, args ...interface{}) (event *Event, err error) {
+	err = kc.kernel.setArgs(args)
 	if err != nil {
-		ch <- err
-		return ch
+		return
 	}
-	return kc.kernel.call(kc.globalWorkSizes, kc.localWorkSizes)
+	return kc.kernel.call(kc.globalWorkOffsets, kc.globalWorkSizes, kc.localWorkSizes, returnEvent, waitEvents)
 }
 
 func releaseKernel(k *Kernel) {
@@ -179,56 +202,54 @@ func (k *Kernel) setArgUnsafe(index, argSize int, arg unsafe.Pointer) error {
 	return toErr(C.clSetKernelArg(k.k, C.cl_uint(index), C.size_t(argSize), arg))
 }
 
-func (k *Kernel) call(workSizes, lokalSizes []int) <-chan error {
-	ch := make(chan error, 1)
-	workDim := len(workSizes)
-	if workDim != len(lokalSizes) && len(lokalSizes) > 0 {
-		ch <- errors.New("length of workSizes and localSizes differ")
-		return ch
+func (k *Kernel) call(workOffsets, workSizes, lokalSizes []int, returnEvent bool, waitEvents []*Event) (event *Event, err error) {
+	if len(workSizes) != len(lokalSizes) && len(lokalSizes) > 0 {
+		err = errors.New("length of workSizes and localSizes differ")
+		return
 	}
-	globalWorkOffsetPtr := make([]C.size_t, workDim)
-	globalWorkSizePtr := make([]C.size_t, workDim)
-	for i := 0; i < workDim; i++ {
-		globalWorkSizePtr[i] = C.size_t(workSizes[i])
+	if len(workOffsets) > len(workSizes) {
+		err = errors.New("workOffsets has a higher dimension than workSizes")
+		return
 	}
-	localWorkSizePtr := make([]C.size_t, len(lokalSizes))
+	globalWorkOffset := make([]C.size_t, len(workSizes))
+	for i := 0; i < len(workOffsets); i++ {
+		globalWorkOffset[i] = C.size_t(workOffsets[i])
+	}
+	globalWorkSize := make([]C.size_t, len(workSizes))
+	for i := 0; i < len(workSizes); i++ {
+		globalWorkSize[i] = C.size_t(workSizes[i])
+	}
+	localWorkSize := make([]C.size_t, len(lokalSizes))
 	for i := 0; i < len(lokalSizes); i++ {
-		localWorkSizePtr[i] = C.size_t(lokalSizes[i])
+		localWorkSize[i] = C.size_t(lokalSizes[i])
 	}
-	var event C.cl_event
-	var err error
+	cWaitEvents := make([]C.cl_event, len(waitEvents))
+	for i := 0; i < len(waitEvents); i++ {
+		cWaitEvents[i] = waitEvents[i].event
+	}
+	var waitEventsPtr *C.cl_event
+	if len(cWaitEvents) > 0 {
+		waitEventsPtr = &cWaitEvents[0]
+	}
+	var localWorkSizePtr unsafe.Pointer
 	if len(lokalSizes) > 0 {
-		err = toErr(C.clEnqueueNDRangeKernel(
-			k.d.queue,
-			k.k,
-			C.cl_uint(workDim),
-			&globalWorkOffsetPtr[0],
-			&globalWorkSizePtr[0],
-			&localWorkSizePtr[0],
-			0,
-			nil,
-			&event,
-		))
-	} else {
-		err = toErr(C.clEnqueueNDRangeKernel(
-			k.d.queue,
-			k.k,
-			C.cl_uint(workDim),
-			&globalWorkOffsetPtr[0],
-			&globalWorkSizePtr[0],
-			nil,
-			0,
-			nil,
-			&event,
-		))
+		localWorkSizePtr = unsafe.Pointer(&localWorkSize[0])
 	}
-	if err != nil {
-		ch <- err
-		return ch
+	var eventPtr *C.cl_event
+	if returnEvent {
+		event = &Event{}
+		eventPtr = &event.event
 	}
-	go func() {
-		defer C.clReleaseEvent(event)
-		ch <- toErr(C.clWaitForEvents(1, &event))
-	}()
-	return ch
+	err = toErr(C.clEnqueueNDRangeKernel(
+		k.d.queue,
+		k.k,
+		C.cl_uint(len(workSizes)),
+		&globalWorkOffset[0],
+		&globalWorkSize[0],
+		(*C.size_t)(localWorkSizePtr),
+		C.uint(len(waitEvents)),
+		waitEventsPtr,
+		eventPtr,
+	))
+	return
 }

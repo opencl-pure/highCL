@@ -67,6 +67,6 @@ func (b *Bytes) Data() ([]byte, error) {
 }
 
 //Map applies an map kernel on all elements of the buffer
-func (b *Bytes) Map(k *Kernel) <-chan error {
-	return k.Global(b.buf.size).Local(1).Run(b)
+func (b *Bytes) Map(k *Kernel, returnEvent bool, waitEvents []*Event) (*Event, error) {
+	return k.Global(b.buf.size).Local(1).Run(returnEvent, waitEvents, b)
 }
