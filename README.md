@@ -7,10 +7,11 @@ Thank to all of them!
 # goal
 - easy to multiplatform (thank [purego](https://github.com/ebitengine/purego))
 - easy find path (custumize path to openclLib shared library)
-- easy to compile, we do not need cgo and knowing link to shared library
+- easy to compile, we do not need cgo and not need knowing link to shared library
 - try [purego](https://github.com/ebitengine/purego) and bring opencl on android without complicate link
+- be high level and allow more than `[]float32` vectors
 # not goal
-- be faster as cgo call, [purego](https://github.com/ebitengine/purego) is using same mechanism as cgo 
+- be faster as cgo version, [purego](https://github.com/ebitengine/purego) is using same mechanism as cgo 
 # examples
 ## 1
 
