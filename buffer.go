@@ -1,61 +1,56 @@
-package blackcl
+package highCL
 
-/*
-#cgo CFLAGS: -I CL
-#cgo !darwin LDFLAGS: -lOpenCL
-#cgo darwin LDFLAGS: -framework OpenCL
-
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/cl.h>
-#endif
-*/
-import "C"
 import (
 	"errors"
+	constants "github.com/opencl-pure/constantsCL"
+	pure "github.com/opencl-pure/pureCL"
+	"log"
+	"runtime"
 	"unsafe"
 )
 
-//buffer memory buffer on the device
+// buffer memory buffer on the device
 type buffer struct {
-	memobj C.cl_mem
-	size   int
+	memobj pure.Buffer
+	size   pure.Size
 	device *Device
 }
 
-//newBuffer creates new buffer with specified size
-func newBuffer(d *Device, size int) (C.cl_mem, error) {
-	var ret C.cl_int
-	clBuffer := C.clCreateBuffer(d.ctx, C.CL_MEM_READ_WRITE, C.size_t(size), nil, &ret)
-	err := toErr(ret)
-	if err != nil {
+// newBuffer creates new buffer with specified size
+func newBuffer(d *Device, size int) (*buffer, error) {
+	var ret pure.Status
+	clBuffer := pure.CreateBuffer(d.ctx, constants.CL_MEM_READ_WRITE, pure.Size(size), nil, &ret)
+	if err := pure.StatusToErr(ret); err != nil {
 		return nil, err
 	}
-	if clBuffer == nil {
+	if clBuffer == pure.Buffer(0) {
 		return nil, ErrUnknown
 	}
-	return clBuffer, nil
+	return &buffer{
+		memobj: clBuffer,
+		size:   pure.Size(size),
+		device: d,
+	}, nil
 }
 
-//Release releases the buffer on the device
+// Release releases the buffer on the device
 func (b *buffer) Release() error {
-	return toErr(C.clReleaseMemObject(b.memobj))
+	return pure.StatusToErr(pure.ReleaseMemObject(b.memobj))
 }
 
 func (b *buffer) copy(size int, ptr unsafe.Pointer) <-chan error {
 	ch := make(chan error, 1)
-	if b.size != size {
+	if b.size != pure.Size(size) {
 		ch <- errors.New("buffer size not equal to data len")
 		return ch
 	}
-	var event C.cl_event
-	err := toErr(C.clEnqueueWriteBuffer(
+	var event pure.Event
+	err := pure.StatusToErr(pure.EnqueueWriteBuffer(
 		b.device.queue,
 		b.memobj,
-		C.CL_FALSE,
+		false,
 		0,
-		C.size_t(size),
+		pure.Size(size),
 		ptr,
 		0,
 		nil,
@@ -66,8 +61,14 @@ func (b *buffer) copy(size int, ptr unsafe.Pointer) <-chan error {
 		return ch
 	}
 	go func() {
-		defer C.clReleaseEvent(event)
-		ch <- toErr(C.clWaitForEvents(1, &event))
+		list := []pure.Event{event}
+		defer func() {
+			if err2 := pure.StatusToErr(pure.ReleaseEvent(event)); err2 != nil {
+				log.Println(err2)
+			}
+			runtime.KeepAlive(list)
+		}()
+		ch <- pure.StatusToErr(pure.WaitForEvents(1, list))
 	}()
 	return ch
 }

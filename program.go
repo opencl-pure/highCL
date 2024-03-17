@@ -1,42 +1,30 @@
 // program
-package blackcl
+package highCL
 
-/*
-#cgo CFLAGS: -I CL
-#cgo !darwin LDFLAGS: -lOpenCL
-#cgo darwin LDFLAGS: -framework OpenCL
-
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/cl.h>
-#endif
-*/
-import "C"
 import (
+	constants "github.com/opencl-pure/constantsCL"
+	pure "github.com/opencl-pure/pureCL"
 	"unsafe"
 )
 
 type Program struct {
-	program C.cl_program
+	program pure.Program
 }
 
-// Return the program binaries associated with program.
+// GetBinaries Return the program binaries associated with program.
 func (p *Program) GetBinaries() ([][]byte, error) {
-
-	var devices C.cl_uint
-
-	err := toErr(C.clGetProgramInfo(p.program, C.CL_PROGRAM_NUM_DEVICES, C.size_t(C.sizeof_cl_uint), unsafe.Pointer(&devices), nil))
+	var devices pure.Device
+	err := pure.StatusToErr(pure.GetProgramInfo(p.program, pure.ProgramBuildInfo(constants.CL_PROGRAM_NUM_DEVICES), pure.Size(4), unsafe.Pointer(&devices), nil))
 	if err != nil {
 		return nil, err
 	}
-	deviceIDs := make([]C.cl_device_id, devices)
-	err = toErr(C.clGetProgramInfo(p.program, C.CL_PROGRAM_DEVICES, C.size_t(len(deviceIDs)*C.sizeof_cl_device_id), unsafe.Pointer(&deviceIDs[0]), nil))
+	deviceIDs := make([]pure.Device, devices)
+	err = pure.StatusToErr(pure.GetProgramInfo(p.program, constants.CL_PROGRAM_DEVICES, pure.Size(len(deviceIDs)*4), unsafe.Pointer(&deviceIDs[0]), nil))
 	if err != nil {
 		return nil, err
 	}
-	binarySizes := make([]C.size_t, devices)
-	err = toErr(C.clGetProgramInfo(p.program, C.CL_PROGRAM_BINARY_SIZES, C.size_t(len(deviceIDs)*C.sizeof_size_t), unsafe.Pointer(&binarySizes[0]), nil))
+	binarySizes := make([]pure.Size, devices)
+	err = pure.StatusToErr(pure.GetProgramInfo(p.program, constants.CL_PROGRAM_BINARY_SIZES, pure.Size(len(deviceIDs)*4), unsafe.Pointer(&binarySizes[0]), nil))
 	if err != nil {
 		return nil, err
 	}
@@ -44,16 +32,15 @@ func (p *Program) GetBinaries() ([][]byte, error) {
 	binaries := make([][]byte, devices)
 	cBinaries := make([]unsafe.Pointer, devices)
 	for i, size := range binarySizes {
-		cBinaries[i] = C.malloc(C.size_t(size))
-		defer C.free(cBinaries[i])
+		cBinaries[i] = unsafe.Pointer(&make([]byte, size)[0])
 	}
-	err = toErr(C.clGetProgramInfo(p.program, C.CL_PROGRAM_BINARIES, C.size_t(len(cBinaries)*C.sizeof_size_t), unsafe.Pointer(&cBinaries[0]), nil))
+	err = pure.StatusToErr(pure.GetProgramInfo(p.program, constants.CL_PROGRAM_BINARIES, pure.Size(len(cBinaries)*4), unsafe.Pointer(&cBinaries[0]), nil))
 	if err != nil {
 		return nil, err
 	}
 
 	for i, size := range binarySizes {
-		binaries[i] = C.GoBytes(unsafe.Pointer(cBinaries[i]), C.int(size))
+		binaries[i] = (*(*[1 << 20]byte)(cBinaries[i]))[:size]
 	}
 
 	return binaries, nil

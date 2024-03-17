@@ -1,141 +1,137 @@
-package blackcl
+package highCL
 
-/*
-#cgo CFLAGS: -I CL
-#cgo !darwin LDFLAGS: -lOpenCL
-#cgo darwin LDFLAGS: -framework OpenCL
-
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/cl.h>
-#endif
-*/
-import "C"
 import (
+	"errors"
+	constants "github.com/opencl-pure/constantsCL"
+	pure "github.com/opencl-pure/pureCL"
+	"runtime"
+	"strings"
 	"unsafe"
 )
 
-//DeviceType is an enum of device types
-type DeviceType uint
-
-//All values of DeviceType
-const (
-	DeviceTypeCPU         DeviceType = C.CL_DEVICE_TYPE_CPU
-	DeviceTypeGPU         DeviceType = C.CL_DEVICE_TYPE_GPU
-	DeviceTypeAccelerator DeviceType = C.CL_DEVICE_TYPE_ACCELERATOR
-	DeviceTypeDefault     DeviceType = C.CL_DEVICE_TYPE_DEFAULT
-	DeviceTypeAll         DeviceType = C.CL_DEVICE_TYPE_ALL
-)
-
-//Device the only needed entrence for the BlackCL
-//represents the device on which memory can be allocated and kernels run
-//it abstracts away all the complexity of contexts/platforms/queues
+// Device the only needed entrence for the BlackCL
+// represents the device on which memory can be allocated and kernels run
+// it abstracts away all the complexity of contexts/platforms/queues
 type Device struct {
-	id       C.cl_device_id
-	ctx      C.cl_context
-	queue    C.cl_command_queue
-	programs []C.cl_program
+	id       []pure.Device
+	ctx      pure.Context
+	queue    pure.CommandQueue
+	programs []pure.Program // only one
+	platform *Platform
 }
 
-//Release releases the device
+// Release releases the device
 func (d *Device) Release() error {
+	var result error
 	for _, p := range d.programs {
-		err := toErr(C.clReleaseProgram(p))
-		if err != nil {
-			return err
+		if err := pure.StatusToErr(pure.ReleaseProgram(p)); err != nil {
+			result = pure.ErrJoin(result, err)
 		}
 	}
-	err := toErr(C.clReleaseCommandQueue(d.queue))
-	if err != nil {
-		return err
+	if err := pure.StatusToErr(pure.ReleaseCommandQueue(d.queue)); err != nil {
+		result = pure.ErrJoin(result, err)
 	}
-	err = toErr(C.clReleaseContext(d.ctx))
-	if err != nil {
-		return err
+	if err := pure.StatusToErr(pure.ReleaseContext(d.ctx)); err != nil {
+		result = pure.ErrJoin(result, err)
 	}
-	return toErr(C.clReleaseDevice(d.id))
+	return pure.ErrJoin(result, pure.StatusToErr(pure.ReleaseDevice(d.id[0])))
 }
 
-func (d *Device) getInfoString(param C.cl_device_info, panicOnError bool) (string, error) {
-	var strC [1024]C.char
-	var strN C.size_t
-	err := toErr(C.clGetDeviceInfo(d.id, param, 1024, unsafe.Pointer(&strC), &strN))
+func (d *Device) GetInfoString(param pure.DeviceInfo) (string, error) {
+	strC := make([]byte, 1024)
+	var strN pure.Size
+	err := pure.StatusToErr(pure.GetDeviceInfo(d.id[0], param, 1024, strC, &strN))
 	if err != nil {
 		return "", err
 	}
-	return C.GoStringN((*C.char)(unsafe.Pointer(&strC)), C.int(strN)), nil
+	return strings.TrimSpace(string(strC[:int(strN)-1])), nil
 }
 
-func (d *Device) String() string {
-	return d.Name() + " " + d.Vendor()
+func (d *Device) String() (string, error) {
+	name, err := d.Name()
+	vendor, err2 := d.Vendor()
+	return name + " " + vendor, pure.ErrJoin(err, err2)
 }
 
-//Name device info - name
-func (d *Device) Name() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_NAME, true)
-	return str
+// Name device info - name
+func (d *Device) Name() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_NAME)
 }
 
-//Vendor device info - vendor
-func (d *Device) Vendor() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_VENDOR, true)
-	return str
+// Vendor device info - vendor
+func (d *Device) Vendor() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_VENDOR)
 }
 
-//Extensions device info - extensions
-func (d *Device) Extensions() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_EXTENSIONS, true)
-	return str
+// Extensions device info - extensions
+func (d *Device) Extensions() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_EXTENSIONS)
 }
 
-//OpenCLCVersion device info - OpenCL C Version
-func (d *Device) OpenCLCVersion() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_OPENCL_C_VERSION, true)
-	return str
+// OpenCLCVersion device info - OpenCL C Version
+func (d *Device) OpenCLCVersion() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_OPENCL_C_VERSION)
 }
 
-//Profile device info - profile
-func (d *Device) Profile() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_PROFILE, true)
-	return str
+// Profile device info - profile
+func (d *Device) Profile() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_PROFILE)
 }
 
-//Version device info - version
-func (d *Device) Version() string {
-	str, _ := d.getInfoString(C.CL_DEVICE_VERSION, true)
-	return str
+// Version device info - version
+func (d *Device) Version() (string, error) {
+	return d.GetInfoString(constants.CL_DEVICE_VERSION)
 }
 
-//DriverVersion device info - driver version
-func (d *Device) DriverVersion() string {
-	str, _ := d.getInfoString(C.CL_DRIVER_VERSION, true)
-	return str
+// DriverVersion device info - driver version
+func (d *Device) DriverVersion() (string, error) {
+	return d.GetInfoString(constants.CL_DRIVER_VERSION)
 }
 
-//AddProgram copiles program source
-//if an error ocurres in building the program the AddProgram will panic
-func (d *Device) AddProgram(source string) *Program {
-	var ret C.cl_int
-	csource := C.CString(source)
-	defer C.free(unsafe.Pointer(csource))
-	p := C.clCreateProgramWithSource(d.ctx, 1, &csource, nil, &ret)
-	err := toErr(ret)
+func (d *Device) PlatformName() (string, error) {
+	return d.platform.GetName()
+}
+
+func (d *Device) PlatformProfile() (string, error) {
+	return d.platform.GetProfile()
+}
+
+func (d *Device) PlatformOpenCLCVersion() (string, error) {
+	return d.platform.GetVersion()
+}
+
+func (d *Device) PlatformDriverVersion() (string, error) {
+	return d.platform.GetVersion()
+}
+
+func (d *Device) PlatformVendor() (string, error) {
+	return d.platform.GetVendor()
+}
+
+func (d *Device) PlatformExtensions() ([]pure.Extension, error) {
+	return d.platform.GetExtensions()
+}
+
+// AddProgram copiles program source
+func (d *Device) AddProgram(source string) (*Program, error) {
+	defer runtime.KeepAlive(source)
+	var ret pure.Status
+	p := pure.CreateProgramWithSource(d.ctx, 1, []string{source}, nil, &ret)
+	err := pure.StatusToErr(ret)
 	if err != nil {
 		panic(err)
 	}
-	ret = C.clBuildProgram(p, 1, &d.id, nil, nil, nil)
-	if ret != C.CL_SUCCESS {
-		if ret == C.CL_BUILD_PROGRAM_FAILURE {
-			var n C.size_t
-			C.clGetProgramBuildInfo(p, d.id, C.CL_PROGRAM_BUILD_LOG, 0, nil, &n)
+	ret = pure.BuildProgram(p, 1, d.id, []byte(""), nil, nil)
+	if ret != constants.CL_SUCCESS {
+		if ret == constants.CL_BUILD_PROGRAM_FAILURE {
+			var n pure.Size
+			pure.GetProgramBuildInfo(p, d.id[0], constants.CL_PROGRAM_BUILD_LOG, 0, nil, &n)
 			log := make([]byte, int(n))
-			C.clGetProgramBuildInfo(p, d.id, C.CL_PROGRAM_BUILD_LOG, n, unsafe.Pointer(&log[0]), nil)
-			panic(string(log))
+			pure.GetProgramBuildInfo(p, d.id[0], constants.CL_PROGRAM_BUILD_LOG, n, unsafe.Pointer(&log[0]), nil)
+			return nil, errors.New(string(log))
 		}
-		panic(toErr(ret))
+		return nil, pure.StatusToErr(ret)
 	}
 	d.programs = append(d.programs, p)
-
-	return &Program{program: p}
+	return &Program{program: p}, nil
 }
