@@ -11,7 +11,7 @@ Thank to all of them!
 - try [purego](https://github.com/ebitengine/purego) and bring opencl on android without complicate link
 - be high level and allow more than `[]float32` vectors
 # not goal
-- be faster as cgo version, [purego](https://github.com/ebitengine/purego) is using same mechanism as cgo 
+- be faster as cgo version, [purego](https://github.com/ebitengine/purego) is using same mechanism as cgo
 # examples
 ## 1
 
@@ -25,8 +25,9 @@ import (
 	"log"
 )
 
-func main() {
-	err := opencl.Init(pure.Version2_0) //init with version of OpenCL
+func main() {	
+	//init with version of OpenCL and variadic special paths (if you know)
+	err := opencl.Init(pure.Version2_0/*, "some/special/path/opencl.dll", "some/special/path/opencl.so"*/)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -3,8 +3,8 @@ module github.com/opencl-pure/highCL
 go 1.20
 
 require (
-	github.com/opencl-pure/constantsCL v0.0.0-20240317133134-e25d0cce2178
-	github.com/opencl-pure/pureCL v0.0.0-20240317133632-c8f72ec96341
+	github.com/opencl-pure/constantsCL v0.0.0-20240317165126-e939496b9300
+	github.com/opencl-pure/pureCL v0.0.0-20240317181835-e7aaf45bb856
 )
 
 require (

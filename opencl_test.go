@@ -15,7 +15,7 @@ import (
 )
 
 func TestGetDevices(t *testing.T) {
-	err := Init(pure.Version2_0)
+	err := Init(pure.Version2_0, "libOpenCL.so")
 	if err != nil {
 		t.Fatal(err)
 	}

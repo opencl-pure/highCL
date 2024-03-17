@@ -71,6 +71,6 @@ func newDevice(id []pure.Device, p *Platform) (*Device, error) {
 	return d, nil
 }
 
-func Init(version pure.Version) (e error) {
-	return pure.Init(version)
+func Init(version pure.Version, paths ...string) error {
+	return pure.Init(version, paths...)
 }
