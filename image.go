@@ -6,7 +6,6 @@ import (
 	pure "github.com/opencl-pure/pureCL"
 	"image"
 	"log"
-	"runtime"
 	"unsafe"
 )
 
@@ -168,7 +167,6 @@ func (img *Image) copy(data []byte) <-chan error {
 			if err2 := pure.StatusToErr(pure.ReleaseEvent(event)); err2 != nil {
 				log.Println(err2)
 			}
-			runtime.KeepAlive(list)
 		}()
 		ch <- pure.StatusToErr(pure.WaitForEvents(1, list))
 	}()

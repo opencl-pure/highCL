@@ -5,7 +5,6 @@ import (
 	"fmt"
 	constants "github.com/opencl-pure/constantsCL"
 	pure "github.com/opencl-pure/pureCL"
-	"runtime"
 	"unsafe"
 )
 
@@ -27,7 +26,6 @@ func (d *Device) Kernel(name string) (*Kernel, error) {
 	if ret == constants.CL_INVALID_KERNEL_NAME {
 		return nil, pure.StatusToErr(ret)
 	}
-	runtime.KeepAlive(name)
 	return newKernel(d, k), nil
 }
 

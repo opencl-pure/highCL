@@ -5,7 +5,6 @@ import (
 	constants "github.com/opencl-pure/constantsCL"
 	pure "github.com/opencl-pure/pureCL"
 	"log"
-	"runtime"
 	"unsafe"
 )
 
@@ -66,7 +65,6 @@ func (b *buffer) copy(size int, ptr unsafe.Pointer) <-chan error {
 			if err2 := pure.StatusToErr(pure.ReleaseEvent(event)); err2 != nil {
 				log.Println(err2)
 			}
-			runtime.KeepAlive(list)
 		}()
 		ch <- pure.StatusToErr(pure.WaitForEvents(1, list))
 	}()

@@ -470,7 +470,7 @@ func invertCPU(input image.Image) image.Image {
 	for x := 0; x < bounds.Max.X; x++ {
 		for y := 0; y < bounds.Max.Y; y++ {
 			//r, g, b, a := input.At(x, y).(color.YCbCr).RGBA()
-			r, g, b, a := input.At(x, y).(color.RGBA).RGBA()
+			r, g, b, a := input.At(x, y).(color.YCbCr).RGBA()
 			newImg.Set(x, y, color.RGBA{
 				R: uint8(0xff - r),
 				G: uint8(0xff - g),

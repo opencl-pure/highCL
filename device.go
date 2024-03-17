@@ -4,7 +4,6 @@ import (
 	"errors"
 	constants "github.com/opencl-pure/constantsCL"
 	pure "github.com/opencl-pure/pureCL"
-	"runtime"
 	"strings"
 	"unsafe"
 )
@@ -114,12 +113,11 @@ func (d *Device) PlatformExtensions() ([]pure.Extension, error) {
 
 // AddProgram copiles program source
 func (d *Device) AddProgram(source string) (*Program, error) {
-	defer runtime.KeepAlive(source)
 	var ret pure.Status
 	p := pure.CreateProgramWithSource(d.ctx, 1, []string{source}, nil, &ret)
 	err := pure.StatusToErr(ret)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	ret = pure.BuildProgram(p, 1, d.id, []byte(""), nil, nil)
 	if ret != constants.CL_SUCCESS {
