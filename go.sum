@@ -4,5 +4,7 @@ github.com/opencl-pure/constantsCL v0.0.0-20240317165126-e939496b9300 h1:KeQjWhR
 github.com/opencl-pure/constantsCL v0.0.0-20240317165126-e939496b9300/go.mod h1:MwfM6U1JKf99LyG4YTryEsMUHY9QsAoBZCwSJW+zNlk=
 github.com/opencl-pure/pureCL v0.0.0-20240317181835-e7aaf45bb856 h1:pO0SbppCnMf00dinOFQRPkWqtOhzsJggHngBjP6QfkY=
 github.com/opencl-pure/pureCL v0.0.0-20240317181835-e7aaf45bb856/go.mod h1:dxWbVmZAgHGCf1xffaIZ+u2k9qQLe3dTdZIShb3Om/w=
+github.com/opencl-pure/pureCL v0.0.0-20240318161236-38c8df81d5a8 h1:YpQ6YcLKWlGTxfCA3p+vFs2buMffE2CV40mZ/OyK+3U=
+github.com/opencl-pure/pureCL v0.0.0-20240318161236-38c8df81d5a8/go.mod h1:dxWbVmZAgHGCf1xffaIZ+u2k9qQLe3dTdZIShb3Om/w=
 golang.org/x/sys v0.18.0 h1:DBdB3niSjOA/O0blCZBqDefyWNYveAYMNF1Wum0DYQ4=
 golang.org/x/sys v0.18.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=

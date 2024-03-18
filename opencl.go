@@ -71,6 +71,10 @@ func newDevice(id []pure.Device, p *Platform) (*Device, error) {
 	return d, nil
 }
 
+func SetHandle(handle uintptr) {
+	pure.SetHandle(handle)
+}
+
 func Init(version pure.Version, paths ...string) error {
 	return pure.Init(version, paths...)
 }
