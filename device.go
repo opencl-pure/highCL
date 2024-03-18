@@ -111,22 +111,39 @@ func (d *Device) PlatformExtensions() ([]pure.Extension, error) {
 	return d.platform.GetExtensions()
 }
 
-// AddProgram copiles program source
+// AddProgram compiles program source, this function is very sensitive to strings coding,
+// and more then 3 programs, so I recommend all kernels put in one string
 func (d *Device) AddProgram(source string) (*Program, error) {
+	return d.AddMultipleProgramWithBuildingFlags([]string{source}, "")
+}
+
+// AddMultipleProgram compiles programs sources, this function is very sensitive to strings coding
+func (d *Device) AddMultipleProgram(sources []string) (*Program, error) {
+	return d.AddMultipleProgramWithBuildingFlags(sources, "")
+}
+
+// AddMultipleProgramWithBuildingFlags compiles programs sources with flags, this function is very sensitive to strings coding
+// add flags only when you know what you do
+func (d *Device) AddMultipleProgramWithBuildingFlags(sources []string, flags string) (*Program, error) {
 	var ret pure.Status
-	p := pure.CreateProgramWithSource(d.ctx, 1, []string{source}, nil, &ret)
+	p := pure.CreateProgramWithSource(d.ctx, pure.Size(len(sources)), sources, nil, &ret)
 	err := pure.StatusToErr(ret)
 	if err != nil {
 		return nil, err
 	}
-	ret = pure.BuildProgram(p, 1, d.id, []byte(""), nil, nil)
+
+	flagsB := []byte{'\x00'}
+	if len(flags) > 0 {
+		flagsB = append([]byte(flags), byte('\x00'))
+	}
+	ret = pure.BuildProgram(p, 1, d.id, flagsB, nil, nil)
 	if ret != constants.CL_SUCCESS {
 		if ret == constants.CL_BUILD_PROGRAM_FAILURE {
 			var n pure.Size
 			pure.GetProgramBuildInfo(p, d.id[0], constants.CL_PROGRAM_BUILD_LOG, 0, nil, &n)
 			log := make([]byte, int(n))
 			pure.GetProgramBuildInfo(p, d.id[0], constants.CL_PROGRAM_BUILD_LOG, n, unsafe.Pointer(&log[0]), nil)
-			return nil, errors.New(string(log))
+			return nil, errors.New(string(log[:int(n)-1]))
 		}
 		return nil, pure.StatusToErr(ret)
 	}

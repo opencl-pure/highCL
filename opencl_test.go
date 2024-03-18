@@ -319,6 +319,72 @@ func TestKernel(t *testing.T) {
 	}
 }
 
+func TestKernelBuildOptions(t *testing.T) {
+	err := Init(pure.Version2_0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := &BuildOptions{
+		Warnings:                true,
+		Macros:                  nil,
+		DirectoryIncludes:       nil,
+		Version:                 pure.Version3_0,
+		SinglePrecisionConstant: false,
+		MadEnable:               false,
+		NoSignedZeros:           false,
+		FastRelaxedMaths:        true,
+		NvidiaVerbose:           true,
+	}
+	_, err = d.AddMultipleProgramWithBuildingFlags([]string{fmt.Sprintf(testKernel)}, op.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+	k, err := d.Kernel("testKernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.ReleaseKernel()
+	data := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	v, err := d.NewVector(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Release()
+	event, err := k.Global(16).Local(1).Run(nil, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = k.Flush()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = k.Finish()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = event.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+	receivedData, err := v.Data()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 16; i++ {
+		if data[i]+1 != float32(receivedData.Index(i).Float()) {
+			t.Error("receivedData not equal to data")
+		}
+	}
+	err = d.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 const invertColorKernel = `
 __constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
@@ -549,5 +615,147 @@ func BenchmarkInvertGPU(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+const benchmarkKernel = `
+__kernel void benchmarkKernel(__global long* data) {
+	const int i = get_global_id (0);
+	for(int i=0;i<10000;i++){data[i]+1;}
+	if(data[i]==0){
+		data[i] += 1+i; 
+	}else{
+	data[i] += 1;}
+}
+`
+
+func BenchmarkKernelBuildOptionsNvidia(t *testing.B) {
+	err := Init(pure.Version2_0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := &BuildOptions{
+		Warnings:                false,
+		Macros:                  nil,
+		DirectoryIncludes:       nil,
+		Version:                 pure.Version3_0,
+		SinglePrecisionConstant: false,
+		MadEnable:               true,
+		NoSignedZeros:           false,
+		FastRelaxedMaths:        true,
+		NvidiaVerbose:           true,
+		UnsafeMaths:             true,
+	}
+	_, err = d.AddMultipleProgramWithBuildingFlags([]string{fmt.Sprintf(benchmarkKernel)}, op.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+	k, err := d.Kernel("benchmarkKernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.ReleaseKernel()
+	var benchmarkData = make([]int64, 4096)
+	v, err := d.NewVector(benchmarkData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Release()
+	kk := k.Global(len(benchmarkData)).Local(1)
+	i := 0
+	for ; i < t.N; i++ {
+		event, err := kk.Run(nil, v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = k.Flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = k.Finish()
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = event.Release()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	receivedData, err := v.Data()
+	if err != nil {
+		t.Fatal(err)
+	}
+	retData := receivedData.Interface().([]int64)
+	for j := 0; j < 4096; j++ {
+		if int64(i+j) != retData[j] {
+			t.Error("receivedData not equal to data")
+		}
+	}
+	err = d.Release()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func BenchmarkKernelBuildOptionsNil(t *testing.B) {
+	err := Init(pure.Version2_0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := GetDefaultDevice()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = d.AddMultipleProgramWithBuildingFlags([]string{fmt.Sprintf(benchmarkKernel)}, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	k, err := d.Kernel("benchmarkKernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.ReleaseKernel()
+	var benchmarkData = make([]int64, 4096)
+	v, err := d.NewVector(benchmarkData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Release()
+	kk := k.Global(len(benchmarkData)).Local(1)
+	i := 0
+	for ; i < t.N; i++ {
+		event, err := kk.Run(nil, v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = k.Flush()
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = k.Finish()
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = event.Release()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	receivedData, err := v.Data()
+	if err != nil {
+		t.Fatal(err)
+	}
+	retData := receivedData.Interface().([]int64)
+	for j := 0; j < 4096; j++ {
+		if int64(i+j) != retData[j] {
+			t.Error("receivedData not equal to data")
+		}
+	}
+	err = d.Release()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
